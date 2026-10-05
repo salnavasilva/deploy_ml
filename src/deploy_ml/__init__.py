@@ -1,6 +1,6 @@
-def main() -> None:
-    print("Hello from deploy-ml!")
+# def main() -> None:
+#     print("Hello from deploy-ml!")
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
