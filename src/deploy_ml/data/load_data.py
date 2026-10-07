@@ -1,12 +1,13 @@
 from datasets import load_dataset
 
+
 class CatsDogsLoader:
 
-    def __init__(self, split):
+    def __init__(self, split, streaming):
         self.dataset = load_dataset(
             "microsoft/cats_vs_dogs",
             split=split,
-            streaming=True
+            streaming=streaming
         )
 
     def __iter__(self):
@@ -36,7 +37,7 @@ class CatsDogsLoader:
 
 
 if __name__ == "__main__":
-    loader = CatsDogsLoader(split="train")
+    loader = CatsDogsLoader(split="train", streaming=False)
     print(type(loader))
 
     for batch in loader.iter_batches(batch_size=5, max_batches=2):

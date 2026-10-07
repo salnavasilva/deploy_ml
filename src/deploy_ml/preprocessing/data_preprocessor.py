@@ -1,8 +1,6 @@
 # from embetter.vision import ImageLoader
-from embetter.multi import ClipEncoder
-import sentence_transformers
-import pandas as pd
 import numpy as np
+from embetter.multi import ClipEncoder
 
 
 class DataPreprocess:
