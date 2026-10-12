@@ -11,7 +11,3 @@ class DataFrameTransformer:
             rows.append({"embeddings": embeddings, "labels": labels})
 
         return pd.DataFrame(rows).explode(['embeddings', 'labels']).reset_index(drop=True)
-               
-               
-
-       

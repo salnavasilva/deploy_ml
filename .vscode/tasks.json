@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Deploy Site",
+			"type": "shell",
+			"command": "here.now publish --path here-now-cat-dog/",
+			"group": "Deployment"
+		}
+	]
+}
