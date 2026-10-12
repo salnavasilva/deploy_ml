@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f5ef">
+    <meta name="description" content="A little image classifier for curious cat and dog people.">
+    <title>Good Eye — cat or dog?</title>
+    <!-- Removed TensorFlow/MobileNet dependencies as prediction is now server-side -->
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #23332d;
+        --muted: #7d8981;
+        --paper: #f7f5ef;
+        --card: #fffefa;
+        --line: #e8e8df;
+        --green: #597c67;
+        --green-deep: #365742;
+        --peach: #f3c9b6;
+        --lavender: #d9d3ed;
+        --shadow: 0 24px 70px rgb(40 55 45 / 9%);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        background:
+          radial-gradient(ellipse at 8% 12%, rgb(217 211 237 / 34%), transparent 30rem),
+          radial-gradient(ellipse at 93% 5%, rgb(243 201 182 / 30%), transparent 27rem),
+          var(--paper);
+        color: var(--ink);
+        font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+      }
+
+      button, input { font: inherit; }
+      button { color: inherit; }
+
+      .page {
+        width: min(100% - 36px, 1050px);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: 28px 0 26px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 15px;
+        font-weight: 750;
+        letter-spacing: -.03em;
+      }
+
+      .brand-mark {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        border-radius: 11px;
+        background: var(--green);
+        color: white;
+      }
+
+      .local-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border: 1px solid #dce4dc;
+        border-radius: 99px;
+        padding: 8px 12px;
+        background: rgb(255 254 250 / 75%);
+        color: #617468;
+        font-size: 11px;
+        font-weight: 650;
+        letter-spacing: .02em;
+      }
+
+      .local-pill::before {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #78a986;
+        content: "";
+      }
+
+      main {
+        width: min(100%, 900px);
+        margin: auto;
+        padding: 54px 0 42px;
+      }
+
+      .intro { text-align: center; }
+
+      .eyebrow {
+        margin: 0 0 15px;
+        color: var(--green);
+        font-size: 11px;
+        font-weight: 750;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(42px, 8vw, 74px);
+        font-weight: 500;
+        letter-spacing: -.065em;
+        line-height: .98;
+      }
+
+      h1 span { color: var(--green); font-style: italic; }
+
+      .subtitle {
+        max-width: 430px;
+        margin: 18px auto 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.65;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(290px, .92fr);
+        gap: 18px;
+        margin-top: 38px;
+      }
+
+      .panel {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid rgb(226 228 218 / 85%);
+        border-radius: 24px;
+        background: var(--card);
+        box-shadow: var(--shadow);
+      }
+
+      .photo-panel { padding: 14px; }
+
+      .drop-zone {
+        position: relative;
+        min-height: 378px;
+        overflow: hidden;
+        display: grid;
+        place-items: center;
+        border: 1.5px dashed #d8ddd4;
+        border-radius: 16px;
+        background:
+          radial-gradient(ellipse at 50% 8%, rgb(217 211 237 / 20%), transparent 50%),
+          #faf9f5;
+        transition: border-color .2s, background .2s;
+      }
+
+      .drop-zone.drag-over {
+        border-color: var(--green);
+        background-color: #f1f6ef;
+      }
+
+      .drop-zone.has-image { border-style: solid; border-color: transparent; background: #f0eee8; }
+
+      .empty-state {
+        width: min(100% - 34px, 280px);
+        padding: 34px 0;
+        text-align: center;
+      }
+
+      .upload-icon {
+        width: 60px;
+        height: 60px;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 18px;
+        border: 1px solid #e8e8df;
+        border-radius: 19px;
+        background: white;
+        color: var(--green);
+        box-shadow: 0 8px 20px rgb(35 51 45 / 5%);
+      }
+
+      .empty-state h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: -.02em;
+      }
+
+      .empty-state p {
+        margin: 8px 0 19px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .choose-button, .analyze-button {
+        min-height: 46px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        border: 0;
+        border-radius: 13px;
+        padding: 0 18px;
+        background: var(--green);
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        transition: background .2s, transform .2s, opacity .2s;
+      }
+
+      .choose-button:hover, .analyze-button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        background: var(--green-deep);
+      }
+
+      .choose-button:focus-visible, .analyze-button:focus-visible, .reset-button:focus-visible {
+        outline: 3px solid #a3c2aa;
+        outline-offset: 3px;
+      }
+
+      #file-input { display: none; }
+
+      .preview {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        inset: 0;
+        display: none;
+        object-fit: contain;
+      }
+
+      .has-image .preview { display: block; }
+      .has-image .empty-state { display: none; }
+
+      .image-label {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        left: 12px;
+        display: none;
+        overflow: hidden;
+        border: 1px solid rgb(255 255 255 / 55%);
+        border-radius: 11px;
+        padding: 9px 12px;
+        background: rgb(255 254 250 / 90%);
+        color: #52645a;
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        backdrop-filter: blur(8px);
+      }
+
+      .has-image .image-label { display: block; }
+
+      .photo-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 13px 2px 1px;
+      }
+
+      .file-note {
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      .reset-button {
+        flex: none;
+        border: 0;
+        padding: 8px 4px 8px 8px;
+        background: transparent;
+        color: #718078;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 650;
+      }
+
+      .result-panel {
+        display: flex;
+        flex-direction: column;
+        padding: 24px;
+      }
+
+      .result-kicker {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+      }
+
+      .sparkle { color: #cb9279; font-size: 15px; }
+
+      .result-content {
+        min-height: 234px;
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        justify-content: center;
+        padding: 23px 0;
+      }
+
+      .result-placeholder {
+        color: #9ba39c;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 25px;
+        font-style: italic;
+        line-height: 1.3;
+      }
+
+      .result-title {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(28px, 4vw, 39px);
+        font-weight: 500;
+        letter-spacing: -.045em;
+        line-height: 1.05;
+      }
+
+      .result-title em { color: var(--green); }
+
+      .caption {
+        min-height: 38px;
+        margin: 10px 0 0;
+        color: #758078;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .probability-list {
+        display: grid;
+        gap: 14px;
+        margin-top: 12px;
+      }
+
+      .probability-row {
+        display: grid;
+        grid-template-columns: 44px 1fr 38px;
+        align-items: center;
+        gap: 10px;
+        color: #7b867e;
+        font-size: 11px;
+      }
+
+      .probability-row strong {
+        color: var(--ink);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+
+      .track {
+        height: 7px;
+        overflow: hidden;
+        border-radius: 8px;
+        background: #edf0ea;
+      }
+
+      .fill {
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--green);
+        transition: width .45s ease;
+      }
+
+      .fill.cat { background: #b3a8d7; }
+      .fill.other { background: #d6d9d2; }
+
+      .result-footer {
+        padding-top: 17px;
+        border-top: 1px solid var(--line);
+      }
+
+      .analyze-button { width: 100%; }
+      .analyze-button:disabled { cursor: not-allowed; opacity: .48; }
+
+      .status {
+        min-height: 16px;
+        margin: 10px 0 0;
+        color: #89948b;
+        font-size: 10px;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      .status.error { color: #a44c43; }
+
+      .fine-print {
+        max-width: 470px;
+        margin: 22px auto 0;
+        color: #929b94;
+        font-size: 10px;
+        line-height: 1.6;
+        text-align: center;
+      }
+
+      footer {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        color: #9aa29b;
+        font-size: 10px;
+      }
+
+      footer svg { color: #c58d78; }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        clip-path: inset(50%);
+      }
+
+      @media (max-width: 680px) {
+        .page { width: min(100% - 28px, 460px); padding-top: 18px; }
+        main { padding: 48px 0 28px; }
+        .workspace { grid-template-columns: 1fr; gap: 13px; margin-top: 28px; }
+        .drop-zone { min-height: min(72vw, 340px); }
+        .result-panel { padding: 20px; }
+        .result-content { min-height: 180px; padding: 18px 0; }
+        .result-placeholder { font-size: 22px; }
+        .fine-print { margin-top: 17px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <!-- SVG Icon here -->
+          </span>
+          <span>good eye</span>
+        </div>
+        <span class="local-pill">Your photo stays on your device</span>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="page-title">
+          <p class="eyebrow">A tiny bit of picture magic</p>
+          <h1 id="page-title">Cat person<br>or <span id="model-endpoint">dog person?</span></h1>
+          <p class="subtitle">Upload a photo and let our server-side model classify it. This version connects to the deployed API.</p>
+        </section>
+
+        <section class="workspace" aria-label="Image classifier">
+          <div class="panel photo-panel">
+            <div class="drop-zone" id="drop-zone">
+              <div class="empty-state">
+                <div class="upload-icon" aria-hidden="true">
+                  <!-- SVG Icon here -->
+                </div>
+                <h2 id="upload-prompt">Bring a photo</h2>
+                <p>Choose a picture or drop one here.<br>We’ll send it to the server for classification.</p>
+                <button class="choose-button" id="choose-button" type="button">
+                  Choose a photo
+                </button>
+              </div>
+              <img class="preview" id="preview" alt="Selected photo preview">
+              <div class="image-label" id="image-label"></div>
+            </div>
+            <div class="photo-actions">
+              <span class="file-note">JPG, PNG, WEBP, GIF · up to 10 MB</span>
+              <button class="reset-button" id="reset-button" type="button" hidden>Remove photo</button>
+            </div>
+            <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment">
+          </div >
+
+          <div class="panel result-panel" aria-live="polite">
+            <div class="result-kicker"><span class="sparkle" aria-hidden="true">✳</span> The little verdict</div >
+            <div class="result-content" id="result-content">
+              <div class="result-placeholder" id="result-placeholder">Waiting for prediction...</div>
+              <div id="result" hidden>
+                <h2 class="result-title" id="result-title"></h2>
+                <p class="caption" id="caption"></p>
+                <div class="probability-list" aria-label="Estimated probabilities">
+                  <div class="probability-row">
+                    <span>Dog</span>
+                    <div class="track"><div class="fill" id="dog-fill"></div></div>
+                    <strong id="dog-value">0%</strong>
+                  </div>
+                  <div class="probability-row">
+                    <span>Cat</span>
+                    <div class="track"><div class="fill cat" id="cat-fill"></div></div>
+                    <strong id="cat-value">0%</strong>
+                  </div>
+                  <div class="probability-row">
+                    <span>Other</span>
+                    <div class="track"><div class="fill other" id="other-fill"></div></div>
+                    <strong id="other-value">0%</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="result-footer">
+              <button class="analyze-button" id="analyze-button" type="button" disabled>
+                <span id="button-label">Analyze Image</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <p class="status" id="status" role="status">Ready to upload.</p>
+            </div >
+          </div>
+        </section>
+      </main>
+
+      <footer class="fine-print">
+        A playful estimate, not a perfect answer. Good Eye uses an ImageNet model, so results can be uncertain — especially for mixed, distant, or unusual subjects.
+      </footer>
+    </div>
+
+    <script>
+      // --- CONFIGURATION ---
+      const API_ENDPOINT = "YOUR_DEPLOYED_BACKEND_URL/predict"; // <-- IMPORTANT: Set this to your deployed app.py URL
+      // --- END CONFIGURATION ---
+
+      const fileInput = document.getElementById("file-input");
+      const chooseButton = document.getElementById("choose-button");
+      const dropZone = document.getElementById("drop-zone");
+      const preview = document.getElementById("preview");
+      const imageLabel = document.getElementById("image-label");
+      const analyzeButton = document.getElementById("analyze-button");
+      const buttonLabel = document.getElementById("button-label");
+      const resetButton = document.getElementById("reset-button");
+      const statusElement = document.getElementById("status");
+      const placeholder = document.getElementById("result-placeholder");
+      const result = document.getElementById("result");
+      const resultTitle = document.getElementById("result-title");
+      const caption = document.getElementById("caption");
+      let currentFile = null;
+
+      // --- UI/STATE MANAGEMENT FUNCTIONS ---
+
+      function setStatus(message, isError = false) {
+        statusElement.textContent = message;
+        statusElement.classList.toggle("error", isError);
+      }
+
+      function resetResult() {
+        placeholder.hidden = false;
+        result.hidden = true;
+      }
+
+      function setImage(file) {
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+          setStatus("Please choose an image file.", true);
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          setStatus("That image is over 10 MB. Please choose a smaller one.", true);
+          return;
+        }
+        currentFile = file;
+        // Display preview (optional, but good UX)
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          preview.src = e.target.result;
+          dropZone.classList.add("has-image");
+          analyzeButton.disabled = false;
+          buttonLabel.textContent = "Analyze Image";
+          resetButton.hidden = false;
+          setStatus("Ready to upload.");
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // --- CORE LOGIC: UPLOAD AND PREDICT ---
+
+      async function analyzeImage() {
+        if (!currentFile) return;
+
+        analyzeButton.disabled = true;
+        buttonLabel.textContent = "Sending to Server...";
+        setStatus("Uploading and analyzing image on the server...");
+
+        const formData = new FormData();
+        // Append the file to be sent in the multipart form data body
+        formData.append("file", currentFile);
+
+        try {
+          const response = await fetch(API_ENDPOINT, {
+            method: "POST",
+            body: formData, // FormData handles the multipart encoding automatically
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          displayPrediction(data);
+
+        } catch (error) {
+          console.error("Prediction failed:", error);
+          setStatus(`Error during prediction: ${error.message}`, true);
+        } finally {
+          analyzeButton.disabled = false;
+          buttonLabel.textContent = "Analyze Image";
+        }
+      }
+
+      function displayPrediction(data) {
+        const prediction = data.prediction;
+        const confidence = data.confidence;
+
+        // Display the result from the server
+        placeholder.hidden = true;
+        result.hidden = false;
+        resultTitle.textContent = prediction.charAt(0).toUpperCase() + prediction.slice(1); // Capitalize
+        caption.textContent = `The model predicts this is a ${prediction} with a confidence of ${Math.round(confidence * 100)}%.`;
+        
+        // Since the server only returns one prediction, we'll use a simple display for now.
+        // If you want to show probabilities, the backend needs to return them too.
+      }
+
+      function clearPhoto() {
+        currentFile = null;
+        // Reset UI elements
+        preview.removeAttribute("src");
+        imageLabel.textContent = "";
+        fileInput.value = "";
+        dropZone.classList.remove("has-image");
+        analyzeButton.disabled = true;
+        buttonLabel.textContent = "Analyze Image";
+        resetButton.hidden = true;
+        resetResult();
+        setStatus("Ready to upload.");
+      }
+
+      // --- EVENT LISTENERS ---
+      chooseButton.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => setImage(fileInput.files[0]));
+      analyzeButton.addEventListener("click", analyzeImage);
+      resetButton.addEventListener("click", clearPhoto);
+
+      // Drag and Drop Handlers
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dropZone.classList.add("drag-over");
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dropZone.classList.remove("drag-over");
+        });
+      });
+
+      dropZone.addEventListener("drop", (event) => {
+        const dt = event.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+          setImage(files[0]);
+        }
+      });
+
+      window.addEventListener("beforeunload", () => {
+        if (currentFile) {
+          // In a real app, you might want to handle cleanup here.
+        }
+      });
+    </script>
+  </body>
+</html>
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          scroll-behavior: auto !important;
+          transition-duration: .01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+              <path d="M4 13.5c0-4.3 3.3-7.5 8-7.5s8 3.2 8 7.5c0 3.2-2.6 5.5-5.8 5.5-1.1 0-1.7-.7-2.2-.7s-1.1.7-2.2.7C6.6 19 4 16.7 4 13.5Z" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M8 5.8 7 3.5l3.1 1.4M16 5.8 17 3.5l-3.1 1.4M9 13h.01M15 13h.01M10 16c1.2.9 2.8.9 4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span>good eye</span>
+        </div>
+        <span class="local-pill">Your photo stays on your device</span>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="page-title">
+          <p class="eyebrow">A tiny bit of picture magic</p>
+          <h1 id="page-title">Cat person<br>or <span>dog person?</span></h1>
+          <p class="subtitle">Drop in a photo and let our little image model take a look. No account, no photo uploads — just curiosity.</p>
+        </section>
+
+        <section class="workspace" aria-label="Image classifier">
+          <div class="panel photo-panel">
+            <div class="drop-zone" id="drop-zone">
+              <div class="empty-state">
+                <div class="upload-icon" aria-hidden="true">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <rect x="3.5" y="4.5" width="17" height="15" rx="3" stroke="currentColor" stroke-width="1.6"/>
+                    <circle cx="8.5" cy="9" r="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="m5 17 4.3-4.2a1.7 1.7 0 0 1 2.4 0l1.1 1.1 1.4-1.4a1.7 1.7 0 0 1 2.4 0l2.4 2.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <h2>Bring a photo</h2>
+                <p>Choose a picture or drop one here.<br>We’ll look for a cat or a dog.</p>
+                <button class="choose-button" id="choose-button" type="button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  Choose a photo
+                </button>
+              </div>
+              <img class="preview" id="preview" alt="Selected photo preview">
+              <div class="image-label" id="image-label"></div>
+            </div>
+            <div class="photo-actions">
+              <span class="file-note">JPG, PNG, WEBP, GIF · up to 10 MB</span>
+              <button class="reset-button" id="reset-button" type="button" hidden>Remove photo</button>
+            </div>
+            <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment">
+          </div>
+
+          <div class="panel result-panel" aria-live="polite">
+            <div class="result-kicker"><span class="sparkle" aria-hidden="true">✳</span> The little verdict</div>
+            <div class="result-content" id="result-content">
+              <div class="result-placeholder" id="result-placeholder">Your answer will<br>show up right here.</div>
+              <div id="result" hidden>
+                <h2 class="result-title" id="result-title"></h2>
+                <p class="caption" id="caption"></p>
+                <div class="probability-list" aria-label="Estimated probabilities">
+                  <div class="probability-row">
+                    <span>Dog</span>
+                    <div class="track"><div class="fill" id="dog-fill"></div></div>
+                    <strong id="dog-value">0%</strong>
+                  </div>
+                  <div class="probability-row">
+                    <span>Cat</span>
+                    <div class="track"><div class="fill cat" id="cat-fill"></div></div>
+                    <strong id="cat-value">0%</strong>
+                  </div>
+                  <div class="probability-row">
+                    <span>Other</span>
+                    <div class="track"><div class="fill other" id="other-fill"></div></div>
+                    <strong id="other-value">0%</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="result-footer">
+              <button class="analyze-button" id="analyze-button" type="button" disabled>
+                <span id="button-label">Choose a photo to begin</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <p class="status" id="status" role="status">Your image is analyzed privately in this browser.</p>
+            </div>
+          </div>
+        </section>
+        <p class="fine-print">A playful estimate, not a perfect answer. Good Eye uses an ImageNet model, so results can be uncertain — especially for mixed, distant, or unusual subjects.</p>
+      </main>
+
+      <footer>
+        Made with a little curiosity
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M20.8 8.8c0 5.5-8.8 10.2-8.8 10.2S3.2 14.3 3.2 8.8A4.3 4.3 0 0 1 11 6.3a4.3 4.3 0 0 1 9.8 2.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+      </footer>
+    </div>
+
+    <script>
+      (() => {
+        const fileInput = document.getElementById("file-input");
+        const chooseButton = document.getElementById("choose-button");
+        const dropZone = document.getElementById("drop-zone");
+        const preview = document.getElementById("preview");
+        const imageLabel = document.getElementById("image-label");
+        const analyzeButton = document.getElementById("analyze-button");
+        const buttonLabel = document.getElementById("button-label");
+        const resetButton = document.getElementById("reset-button");
+        const status = document.getElementById("status");
+        const placeholder = document.getElementById("result-placeholder");
+        const result = document.getElementById("result");
+        const resultTitle = document.getElementById("result-title");
+        const caption = document.getElementById("caption");
+        let model;
+        let currentImageUrl;
+        let isAnalyzing = false;
+
+        const dogPattern = /\b(dog|terrier|retriever|shepherd|spaniel|setter|pointer|poodle|pug|husky|malamute|collie|bulldog|mastiff|schnauzer|hound|beagle|basset|boxer|chihuahua|dalmatian|doberman|pinscher|rottweiler|samoyed|corgi|greyhound|whippet|wolfhound|vizsla|shih|lhasa|eskimo|borzoi|komondor|kuvasz|papillon|pomeranian|dachshund|basenji|saluki|briard|kelpie|dingo)\b/i;
+        const catPattern = /\b(tabby|tiger cat|Persian cat|Siamese cat|Egyptian cat)\b/i;
+
+        function setStatus(message, isError = false) {
+          status.textContent = message;
+          status.classList.toggle("error", isError);
+        }
+
+        function resetResult() {
+          placeholder.hidden = false;
+          result.hidden = true;
+        }
+
+        function setImage(file) {
+          if (!file) return;
+          if (!file.type.startsWith("image/")) {
+            setStatus("Please choose an image file.", true);
+            return;
+          }
+          if (file.size > 10 * 1024 * 1024) {
+            setStatus("That image is over 10 MB. Please choose a smaller one.", true);
+            return;
+          }
+          if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+          currentImageUrl = URL.createObjectURL(file);
+          preview.onload = () => {
+            analyzeButton.disabled = false;
+            buttonLabel.textContent = "Find out";
+            resetButton.hidden = false;
+            setStatus("Ready when you are — your photo stays right here.");
+          };
+          preview.onerror = () => setStatus("We couldn’t open that image. Try another one.", true);
+          preview.src = currentImageUrl;
+          imageLabel.textContent = file.name;
+          dropZone.classList.add("has-image");
+          resetResult();
+        }
+
+        async function classifyImage() {
+          if (isAnalyzing || !currentImageUrl) return;
+          if (typeof mobilenet === "undefined" || typeof tf === "undefined") {
+            setStatus("The image model couldn’t load. Check your connection and try again.", true);
+            return;
+          }
+
+          isAnalyzing = true;
+          analyzeButton.disabled = true;
+          buttonLabel.textContent = "Taking a look…";
+          setStatus("Loading the image model for this browser…");
+          try {
+            if (!model) {
+              model = await mobilenet.load({ version: 2, alpha: 1 });
+            }
+            setStatus("Looking at your photo…");
+            const predictions = await model.classify(preview, 1000);
+            const dog = predictions
+              .filter((item) => dogPattern.test(item.className))
+              .reduce((sum, item) => sum + item.probability, 0);
+            const cat = predictions
+              .filter((item) => catPattern.test(item.className))
+              .reduce((sum, item) => sum + item.probability, 0);
+            const dogScore = Math.min(1, dog);
+            const catScore = Math.min(1 - dogScore, cat);
+            const otherScore = Math.max(0, 1 - dogScore - catScore);
+            showResult(dogScore, catScore, otherScore);
+            setStatus("All done — the photo never left your browser.");
+          } catch (error) {
+            console.error("Image classification failed:", error);
+            setStatus("We couldn’t analyze this photo. Please try another image.", true);
+          } finally {
+            isAnalyzing = false;
+            analyzeButton.disabled = !currentImageUrl;
+            buttonLabel.textContent = "Try another look";
+          }
+        }
+
+        function showResult(dog, cat, other) {
+          const winner = dog >= cat ? "dog" : "cat";
+          const confidence = Math.max(dog, cat);
+          const hasLikelyPet = confidence >= 0.18;
+          placeholder.hidden = true;
+          result.hidden = false;
+          resultTitle.innerHTML = hasLikelyPet
+            ? `Looks like a <em>${winner}</em>.`
+            : "No clear cat or dog.";
+          caption.textContent = hasLikelyPet
+            ? `Our best guess is ${winner}, with ${Math.round(confidence * 100)}% of the model’s score.`
+            : "The model thinks this might be something else — or it could use a clearer photo.";
+          setProbability("dog", dog);
+          setProbability("cat", cat);
+          setProbability("other", other);
+        }
+
+        function setProbability(kind, value) {
+          document.getElementById(`${kind}-fill`).style.width = `${Math.round(value * 100)}%`;
+          document.getElementById(`${kind}-value`).textContent = `${Math.round(value * 100)}%`;
+        }
+
+        function clearPhoto() {
+          if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+          currentImageUrl = undefined;
+          preview.removeAttribute("src");
+          imageLabel.textContent = "";
+          fileInput.value = "";
+          dropZone.classList.remove("has-image");
+          analyzeButton.disabled = true;
+          buttonLabel.textContent = "Choose a photo to begin";
+          resetButton.hidden = true;
+          resetResult();
+          setStatus("Your image is analyzed privately in this browser.");
+        }
+
+        chooseButton.addEventListener("click", () => fileInput.click());
+        fileInput.addEventListener("change", () => setImage(fileInput.files[0]));
+        analyzeButton.addEventListener("click", classifyImage);
+        resetButton.addEventListener("click", clearPhoto);
+
+        for (const eventName of ["dragenter", "dragover"]) {
+          dropZone.addEventListener(eventName, (event) => {
+            event.preventDefault();
+            dropZone.classList.add("drag-over");
+          });
+        }
+        for (const eventName of ["dragleave", "drop"]) {
+          dropZone.addEventListener(eventName, (event) => {
+            event.preventDefault();
+            dropZone.classList.remove("drag-over");
+          });
+        }
+        dropZone.addEventListener("drop", (event) => setImage(event.dataTransfer.files[0]));
+        window.addEventListener("beforeunload", () => {
+          if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+        });
+      })();
+    </script>
+  </body>
+</html>
